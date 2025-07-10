@@ -67,11 +67,11 @@ class BoundarySimulation():
         self.time = 0.
         self.n_steps = n_steps
 
-    def particle_wall_colision(sel)
+    # def particle_wall_colision(sel)
     def _next_wall_colision(self) -> Tuple[float, int]:
         times = []
         walls = []
-        for d in range(2):
+        # for d in range(2):
 
 
     def _next_pair_colision(self) -> Tuple[float, Tuple[np.array, np.array]]:
