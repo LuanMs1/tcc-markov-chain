@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
+from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
+    
 @dataclass
 class HardDiskSystem():
     box_size:float = 1
@@ -9,7 +11,7 @@ class HardDiskSystem():
     n_particles:int = 5
     seed: int = 42
     max_velocity:int = 1
-    periodict_boundary:bool = False
+    periodict_boundary:bool = field(init=False, default=False)
     rng: np.random.Generator = field(init=False)
     positions:np.ndarray = field(init=False)
     velocities:np.ndarray = field(init=False)
@@ -49,10 +51,62 @@ class HardDiskSystem():
                 color='black', angles='xy', scale_units='xy', scale=1, width=0.005
             )
         
-        
         ax.set_xlim(0, self.box_size)
         ax.set_ylim(0, self.box_size)
         ax.set_aspect('equal')
         ax.set_title("Hard Disk System")
         plt.grid(show_grid)
         # plt.show()
+
+class BoundarySimulation():
+
+    def __init__(self, system:HardDiskSystem, n_steps:int= 5):
+        if system.periodict_boundary:
+            raise TypeError('the system must have aperiodic boundary')
+        self.system = system
+        self.time = 0.
+        self.n_steps = n_steps
+
+    def particle_wall_colision(sel)
+    def _next_wall_colision(self) -> Tuple[float, int]:
+        times = []
+        walls = []
+        for d in range(2):
+
+
+    def _next_pair_colision(self) -> Tuple[float, Tuple[np.array, np.array]]:
+        pass
+
+    def _update_position(self, dt):
+        self.system.positions = self.system.positions * (self.system.velocities * dt)
+
+    def _wall_colision(self, vel, wall_index):
+        '''update velocitie in wall colision'''
+        if wall_index in (0, 2):
+            vel[1] *= -1
+        if wall_index in (1, 3):
+            vel[0] *= -1
+
+        
+    def _pair_colision(self, i, j):
+        '''update particle i,j velocities'''
+        pass
+
+    def next_colision(self):
+        wall_time, wall_disk = self._next_wall_colision()
+        pair_time, pair_colision = self._next_pair_colision()
+
+        next_colision_time = min(wall_time, pair_time)
+        self._update_position(next_colision_time - self.time)
+
+        if wall_time < pair_time:
+            self._wall_colision(wall_disk)
+        else:
+            self._pair_colision(pair_colision[0], pair_colision[1])
+
+    def step(self):
+        """simulate one step"""
+        pass
+
+    def run(self):
+        '''simulate all steps'''
