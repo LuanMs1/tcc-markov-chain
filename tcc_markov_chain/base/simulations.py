@@ -1,5 +1,6 @@
 from .systems import HardDiskSystem,NHDWalls,Event
 from abc import ABC, abstractmethod
+from tqdm import tqdm
 import numpy as np
 from typing import Tuple, Callable, Any, Optional, Dict
 import utils.logging as logger
@@ -45,18 +46,21 @@ class BoundarySimulation(HardDiskSimulation):
             n_steps:float = 5.,
             fn:Callable = None,
         ):
-        """run a simulation with steps of regular times dt and apply the function fn for calculate observable"""
         final_t = self.time + (self.dt * n_steps)
         next_frame = self.time + self.dt
         log.info(f"running simulation from {self.time} to {final_t} in {self.dt}")
-        next_event = self.system._get_next_event()
+        next_event = self.system._get_next_event(time=self.time)
+        pbar = tqdm(total=n_steps, desc="Simulating", unit="frame")
+        frame_count=0
         while self.time < final_t:
-            
+            if (self.time < 0)|(next_event.time<0):
+                log.warning("time of the system or of the event is negative")
+                break
             if next_event.time < next_frame:
                 self.system._update_positions(next_event.time - self.time)
                 self.time=next_event.time
                 next_event.call_trigger()
-                next_event = self.system._get_next_event()
+                next_event = self.system._get_next_event(time=self.time)
                 continue
             
             self.system._update_positions(next_frame-self.time)
@@ -64,4 +68,8 @@ class BoundarySimulation(HardDiskSimulation):
             fn(self)
 
             self.time=next_frame
+            frame_count += 1
+            pbar.update(1)
+
             next_frame+=self.dt
+        pbar.close()
