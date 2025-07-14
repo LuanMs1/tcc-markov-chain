@@ -6,6 +6,8 @@ import utils.logging as logger
 logger.setup_logging()
 log = logger.get_logger(__name__)
 
+from tqdm import tqdm
+
 from dataclasses import dataclass
 @dataclass
 class Event:
@@ -169,6 +171,8 @@ class BoundarySimulation(HardDiskSimulation):
         next_frame = self.time + self.dt
         log.info(f"running simulation from {self.time} to {final_t} in {self.dt}")
         next_event = self._get_next_event()
+        pbar = tqdm(total=n_steps, desc="Simulating", unit="frame")
+        frame_count=0
         while self.time < final_t:
             
             if next_event.time < next_frame:
@@ -183,4 +187,8 @@ class BoundarySimulation(HardDiskSimulation):
             fn(self)
 
             self.time=next_frame
+            frame_count += 1
+            pbar.update(1)
+
             next_frame+=self.dt
+        pbar.close()
