@@ -47,6 +47,7 @@ class HardDiskSystem(ABC):
         self.velocities = self._set_random_velocities()
         self.initial_positions = self.positions.copy()
         self.initial_velocities = self.velocities.copy()
+        self.i_idx, self.j_idx = np.triu_indices(self.n_particles, k=1)
         log.info(f'system created with {self.n_particles} particles')
 
     def _set_random_positions(self):
@@ -232,3 +233,23 @@ class NHDWalls(HardDiskSystem):
                 'j':pj
             }
             return Event(pair_dt+time,self._pair_collision, func_arguments)
+
+@dataclass
+class HardDiskPeriodic(HardDiskSystem):
+    def _update_positions(self,dt:float):
+        self.positions = (self.positions + self.velocities*dt) % self.box_size
+
+    def get_relative_positions(self):
+        dx = self.positions[self.i_idx] - self.positions[self.j_idx]
+        dx -= self.box_size * np.rint(dx/self.box_size)
+        return dx
+    
+    def get_relative_velocities(self):
+        return self.velocities[self.i_idx] - self.velocities[self.j_idx]
+    
+    def _next_pair_colision(self):
+        dx = self.get_relative_positions()
+        dv = self.get_relative_velocities()
+
+
+    
