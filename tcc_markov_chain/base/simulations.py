@@ -1,10 +1,20 @@
 from .systems import HardDiskSystem
 from abc import ABC, abstractmethod
 import numpy as np
-from typing import Tuple, Callable
+from typing import Tuple, Callable, Any, Optional, Dict
 import utils.logging as logger
 logger.setup_logging()
 log = logger.get_logger(__name__)
+
+from dataclasses import dataclass
+@dataclass
+class Event:
+    time:float
+    trigger:Callable[...,None]
+    func_args:Dict[str,Any]
+
+    def call_trigger(self):
+        self.trigger(**self.func_args)
 
 class HardDiskSimulation(ABC):
     def __init__(self, system:HardDiskSystem, dt:float=0.5, event_driven:bool=False):
@@ -12,6 +22,7 @@ class HardDiskSimulation(ABC):
         self.time=0
         self.dt=dt
         self.event_driven=event_driven
+        self.collision_triggered = True
     
     def set_time_interval(self,dt:float):
         self.dt=dt
@@ -74,13 +85,12 @@ class HardDiskSimulation(ABC):
         self.time = 0
     
 class BoundarySimulation(HardDiskSimulation):
-    def __init__(self, system:HardDiskSystem, debug = False):
-        if system.periodic_boundary:
+    def __init__(self, system:HardDiskSystem, debug = False,dt=0.5,event_driven=False):
+        super().__init__(system,dt,event_driven=event_driven)
+        if self.system.periodic_boundary:
             error_message = "the system must have aperiodic boundary"
             log.error(error_message)
             raise ValueError(error_message)
-        self.system = system
-        self.time = 0.
         self.debug = debug
         log.info(f'Simulation enviorment with aperiodic boundary created.')
 
@@ -118,73 +128,59 @@ class BoundarySimulation(HardDiskSimulation):
     def _wall_collision(self, particle_index, wall_axis):
         self.system.velocities[particle_index][wall_axis] *= -1
 
-    def step(self):        
+    def _simultaneous_collision(self, pi,pj, wall_particle, wall_axis):
+        self._pair_collision(pi,pj)
+        self._wall_collision(wall_particle,wall_axis)
 
+    def _get_next_event(self) -> Event:
         axis_index, wall_particle, wall_dt = self._next_wall_collision()
         (pi, pj), pair_dt = self._next_pair_collision()
 
-        next_event_time = min(wall_dt, pair_dt)
-        self._update_position(next_event_time)
-        # if (wall_dt > next_event_time) & (pair_dt>next_event_time):
-        #     return
-        if wall_dt < pair_dt:
-            self._wall_collision(wall_particle, axis_index)
-        elif wall_dt == pair_dt:
-            self._wall_collision(wall_particle, axis_index)
-            self._pair_collision(pi, pj)
+        if wall_dt==pair_dt:
+            func_arguments = {
+                'pi':pi,
+                'pj':pj,
+                'wall_particle':wall_particle,
+                'wall_axis':axis_index
+            }
+            return Event(wall_dt+self.time,self._simultaneous_collision,func_arguments)
+        if wall_dt<pair_dt:
+            func_arguments = {
+                'particle_index':wall_particle,
+                'wall_axis':axis_index
+            }
+            return Event(wall_dt+self.time,self._wall_collision, func_arguments)
         else:
-            self._pair_collision(pi, pj)
+            func_arguments = {
+                'i':pi,
+                'j':pj
+            }
+            return Event(pair_dt+self.time,self._pair_collision, func_arguments)
 
-        if self.debug:
-            log.info(f"new positions: {self.system.positions}" )
-            log.info(f"new velocities: {self.system.velocities}")
-            log.info(f"new tiem: {self.time}")
 
-    # def collision_event_simulation(self, n_steps = 5, plot_each_step = False, ax = None, debug = False):
-    #     '''simulate all steps'''
-    #     log.info(f'Running simulation with {n_steps} events')
-    #     self.debug = debug
-    #     for i in range(n_steps):
-    #         if isinstance(ax, np.ndarray):
-    #             step_ax = ax[i]
-    #         else:
-    #             step_ax = ax
-    #         if plot_each_step | (i==0):
-    #             self.system.plot_system(ax = step_ax)
-    #         self.collision_event_step()
-        
-    #     self.system.plot_system(ax=ax[-1] if isinstance(ax,np.ndarray) else ax)
-    #     log.info('end of simulation')
-
-    #later figure out a way to make a giff
+    def step(self):
+        pass
     def run(
             self,
-            dt:float = 0.5,
             n_steps:float = 5.,
-            fn:Callable = None
+            fn:Callable = None,
         ):
-        final_t = self.time + (dt * n_steps)
-        next_frame = self.time + dt
-
+        final_t = self.time + (self.dt * n_steps)
+        next_frame = self.time + self.dt
+        log.info(f"running simulation from {self.time} to {final_t} in {self.dt}")
+        next_event = self._get_next_event()
         while self.time < final_t:
-            (pi,pj), pair_dt = self._next_pair_collision()
-            wall_axis, wall_particle, wall_dt = self._next_wall_collision() 
-            next_collision_dt = min(wall_dt,pair_dt)
+            
+            if next_event.time < next_frame:
+                self._update_position(next_event.time - self.time)
+                self.time=next_event.time
+                next_event.call_trigger()
+                next_event = self._get_next_event()
+                continue
+            
+            self._update_position(next_frame-self.time)
+            #evaluate
+            fn(self)
 
-            if next_collision_dt < (next_frame - self.time):
-                self._update_position(next_collision_dt)
-                #update velocities
-                if wall_dt < pair_dt:
-                    self._wall_collision(wall_particle, wall_axis)
-                elif wall_dt == pair_dt:
-                    self._wall_collision(wall_particle, wall_axis)
-                    self._pair_collision(pi, pj)
-                else:
-                    self._pair_collision(pi, pj)
-                self.time+=next_collision_dt
-
-            else:
-                self._update_position(next_frame - self.time)
-                fn(self)
-                self.time=next_frame
-                next_frame+=dt
+            self.time=next_frame
+            next_frame+=self.dt
