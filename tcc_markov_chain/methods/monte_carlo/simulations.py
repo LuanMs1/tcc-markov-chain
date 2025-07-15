@@ -50,7 +50,6 @@ class DirectSampling(BaseSimulation):
 
 class MarkovChain(BaseSimulation):
     def __init__(self, system:HardDiskSystem,delta_x:float):
-        """prepare simulation with steps of delta_x"""
         super().__init__(system=system)
         self.delta_x=delta_x
 
