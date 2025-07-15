@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Tuple, Callable, Dict, Any
+from typing import Tuple, Callable, Dict, Any, Optional
 from abc import ABC,abstractmethod
 from scipy.spatial.distance import pdist
 import matplotlib.pyplot as plt
@@ -31,6 +31,11 @@ class HardDiskSystem(ABC):
     def __post_init__(self):
         log.info(f'creting system with {self.n_particles} particles of radii {self.particle_radius} and box size {self.box_size}')
         surface_density = (self.n_particles * np.pi * self.particle_radius**2)/self.box_size**2
+        if surface_density > 1:
+            raise ValueError("more particle that the box can pack")
+        if surface_density > 0.8:
+            log.warning("high density system. Initial state can take time to build")
+
         log.info(f'density: {surface_density}')
         self._error_check()
         self.rng = np.random.default_rng(self.seed)
@@ -51,16 +56,41 @@ class HardDiskSystem(ABC):
                 positions.append(pos)
         return np.array(positions)
     
+    def _get_relative_positions(self)->np.ndarray:
+        dis = self.positions[self.i_idx] - self.positions[self.j_idx]
+        dis -= self.box_size * np.rint(dis/self.box_size)
+        return dis
+
+    def _check_particles_superposition(
+            self,
+            positions:np.ndarray,
+            i:Optional[int]=None
+        ):
+        if i:
+            dx = positions[[k for k in range(positions.shape[0]) if k!=i]] - positions[i]
+        else:
+            dx = positions[self.i_idx] - positions[self.j_idx]
+
+        dx -= self.box_size * np.rint(dx/self.box_size)
+        distances = np.linalg.norm(dx,axis=1)
+        if (distances < 2*self.particle_radius).any():
+            return False
+        else:
+            return True      
+
     def set_positions(self,positions:np.ndarray):
         if (positions.shape[0]!=self.n_particles):
             raise ValueError("positions needs to have same size of the system")
-
         self.positions = positions
-        
-        
+
+    def _update_particle_position(self,k:int,displacement:np.ndarray) ->np.ndarray:
+        new_pos = self.positions.copy()
+        new_pos[k] = (new_pos[k] + displacement) % self.box_size
+        return new_pos
+    
     def plot_system(self, show_velocities=False, ax = None, show_grid = False):
         if ax == None:
-            fig, ax = plt.subplots()    
+            fig, ax = plt.subplots()
         
         # Plotando os discos
         for pos in self.positions:

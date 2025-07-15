@@ -21,9 +21,9 @@ class BaseSimulation(ABC):
         frame_count=0
         for i in range(n_steps):
             self.step()
-            eval_fn(self)
+            yield eval_fn(self)
             frame_count += 1
-            pbar.update(1)
+            pbar.update()
         pbar.close()
 
 class DirectSampling(BaseSimulation):
@@ -39,14 +39,31 @@ class DirectSampling(BaseSimulation):
             
             for i in range(self.sys.n_particles-1):
                 new_particle = self.sys.rng.uniform(0+margin,self.sys.box_size-margin,size=2)
-                dis = np.linalg.norm(new_system_positions-new_particle,axis=1)
-                if (dis <= 2*self.sys.particle_radius).any():
+                new_system_positions = np.vstack((new_system_positions,new_particle.reshape(1,-1)))
+                is_valid = self.sys._check_particles_superposition(new_system_positions, i=i+1)
+                if not is_valid:
                     new_system_positions = np.array([new_particle])
                     break
-                new_system_positions = np.vstack((new_system_positions,new_particle.reshape(1,-1)))
         return new_system_positions
     def step(self):
         self.sys.positions = self.direct_sampling()   
 
-               
+class MarkovChain(BaseSimulation):
+    def __init__(self, system:HardDiskSystem,delta_x:float):
+        """prepare simulation with steps of delta_x"""
+        super().__init__(system=system)
+        self.delta_x=delta_x
 
+    def chain_move(self, delta_x:float):
+        "one move in random direction of max displacement delta_x"
+        k = self.sys.rng.integers(0,self.sys.n_particles)
+        dx = self.sys.rng.uniform(-delta_x,delta_x,size=2)
+
+        new_system_positions = self.sys._update_particle_position(k,dx)
+        valid_move = self.sys._check_particles_superposition(positions=new_system_positions,i=k)
+
+        if valid_move:
+            self.sys.positions = new_system_positions
+
+    def step(self):
+        self.chain_move(delta_x=self.delta_x)
