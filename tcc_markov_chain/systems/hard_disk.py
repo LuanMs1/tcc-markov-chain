@@ -13,6 +13,15 @@ class HDPeriodic(DiskSystem):
         super().__post_init__()
         self.periodic=True
     
+    def single_particle_relative_positions(self, particle, positions=None) ->np.ndarray:
+        if positions is None:
+            positions = self.positions
+        
+        rel_pos = positions - particle
+        rel_pos -= self.box_dimension *np.rint(rel_pos/self.box_dimension) 
+
+        return rel_pos
+
     def calculate_relative_positions(self, positions:Optional[np.ndarray] = None):
         if isinstance(positions,np.ndarray):
             i_idx, j_idx = np.triu_indices(positions.shape[0],k=1)
@@ -31,7 +40,8 @@ class HDPeriodic(DiskSystem):
             return False
         dx = self.calculate_relative_positions(new_configuration)
         distances = np.linalg.norm(dx,axis=1)
-        if (distances < 2*self.particle_radius).any():
+        #-1e-14 for a float point tolerance
+        if (distances < (2*self.particle_radius)-1e-14).any():
             return False
         else:
             return True
@@ -45,9 +55,13 @@ class HDPeriodic(DiskSystem):
         if displacement.shape!=self.positions[0].shape:
             raise ValueError("Wrong displacement dimension")
         
-        new_particle_position = self.set_new_particle_position(self.positions[k],displacement)
-        rel_pos = self.positions[[i for i in range(self.n_particles) if i!=k]] - new_particle_position
-        rel_pos -= self.box_size * np.rint(rel_pos/self.box_size)
+        new_particle_position = self.move_particle(self.positions[k],displacement)
+        others = self.positions[[i for i in range(self.n_particles) if i!=k]]
+
+        #relative position compared to others of new position
+        rel_pos = self.single_particle_relative_positions(new_particle_position,others)
+        # rel_pos = self.positions[[i for i in range(self.n_particles) if i!=k]] - new_particle_position
+        # rel_pos -= self.box_size * np.rint(rel_pos/self.box_size)
         dis = np.linalg.norm(rel_pos,axis=1)
         #reject
         if (dis<2*self.particle_radius).any():
