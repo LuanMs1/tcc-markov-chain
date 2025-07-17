@@ -43,4 +43,40 @@ class PeriodicDirectSampling(Simulation):
         while sampling:
             sampling = self.direct_sampling()
 
+# class PeriodicCluster(Simulation):
+#     #dont know. Probably isn't necessary
+#     def __init__(self,system, symmetry_axis = None):
+#         super().__init__(system=system)
+#         if symmetry_axis is None:
+#             self.symmetry_axis = self.system.box_dimension[0] / 2
+#         self.symmetry_axis = symmetry_axis
 
+#     def cluster_sampling(self):
+#         x_move = 2*(self.symmetry_axis - self.system.positions[:,0])
+#         for i in range(self.system.n_particles):
+#             particle = self.system.positions[i].copy()
+#             # move particle to the other side of the symmetry axis
+#             particle[0] = (particle[0] + x_move) % self.system.box_dimension[0]
+#             rel_pos = particle - self.system.positions[[k for k in range(self.system.n_particles) if k != i]]
+#             rel_pos -= self.system.box_dimension * np.rint(rel_pos / self.system.box_dimension)
+#             distances = np.linalg.norm(rel_pos, axis=1)
+#             # if a particle is in supperposition, move it to the other side
+
+#             #check if it colides with any other particle
+#             rel_pos = self.system.single_particle_relative_positions(new_position)
+#         # mirror_positions = self.system.positions.copy()
+#         # mirror_positions[:,0] = (
+#         #     mirror_positions[:,0] + x_move
+#         # ) % self.system.box_dimension[0]
+#         # old_and_mirror = self.system.positions.copy()
+#         # old_and_mirror = np.vstack((old_and_mirror, mirror_positions))
+#         # rel_dis = self.system.calculate_relative_positions(old_and_mirror)
+#         # dis = np.linalg.norm(rel_dis, axis=1)
+#         # superpos
+#         # self.system.positions = old_and_mirror#[dis.any(axis=1)]
+#         # self.system.plot_system(labels=True)
+    
+#     def step(self):
+#         sampling = True
+#         while sampling:
+#             sampling = self.cluster_sampling()
