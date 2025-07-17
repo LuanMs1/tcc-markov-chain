@@ -11,14 +11,11 @@ class MarkovChain(Simulation):
         k = self.system.rng.integers(0,self.system.n_particles)
         dx = self.system.rng.uniform(-delta_x,delta_x,size=2)
 
-        new_system_positions = self.system.update_particle_position(k,dx)
-        valid_move = self.system.validate_configuration(new_system_positions)
-
-        if valid_move:
-            self.system.positions = new_system_positions
+        _ = self.system.update_particle_position(k,dx)
+        # valid_move = self.system.validate_configuration(new_system_positions)
 
     def step(self):
-        self.chain_move(delta_x=self.delta_x)
+        return self.chain_move(delta_x=self.delta_x)
 
 class PeriodicDirectSampling(Simulation):
     def __init__(self,system):
@@ -26,7 +23,9 @@ class PeriodicDirectSampling(Simulation):
 
     def direct_sampling(self):
         for i in range(self.system.n_particles):
-            new_particle = self.system.rng.uniform(0,self.system.box_size,size=2)
+            x = self.system.rng.uniform(0,self.system.box_dimension[0])
+            y = self.system.rng.uniform(0,self.system.box_dimension[1])
+            new_particle = np.array([x,y])
             if i==0:
                 new_system_positions = np.array([new_particle],dtype=float)
             else:
@@ -38,6 +37,7 @@ class PeriodicDirectSampling(Simulation):
                 return True
         self.system.set_positions(new_system_positions)
         return False
+    
     def step(self):
         sampling = True
         while sampling:

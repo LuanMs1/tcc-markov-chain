@@ -11,19 +11,23 @@ from typing import Tuple, Callable, Any, Optional, Dict
 @dataclass
 class DiskSystem(ABC):
     box_size:float=10
+    box_dimension:Tuple[float,float] = (10.,10.)
     n_particles:int=4
     particle_radius:float=0.5
     max_velocity:float = 0.5
     seed:int=42
-    rng: np.random.Generator = field(init=False)
-    positions:np.ndarray = field(init=False)
-    velocities:np.ndarray = field(init=False)
+    fast_initial:bool = False
+    positions: Optional[np.ndarray] = None     # shape: (n_particles, 2)
+    velocities: Optional[np.ndarray] = None    # shape: (n_particles, 2)
+    periodic: Optional[bool] = False
+    rng: np.random.Generator = field(init=False, repr=False)
+
 
     def _error_check(self):
         pass
     def __post_init__(self):
             log.info(f'creting system with {self.n_particles} particles of radii {self.particle_radius}')
-            self.surface_density = (self.n_particles * np.pi * self.particle_radius**2)/self.box_size**2
+            self.surface_density = (self.n_particles * np.pi * self.particle_radius**2)/(self.box_size**2)
             log.info(f'density: {self.surface_density}, box size {self.box_size}')
         
             if self.surface_density > 1:
@@ -33,10 +37,24 @@ class DiskSystem(ABC):
 
             self._error_check()
             self.rng = np.random.default_rng(self.seed)
-            self.positions = self._set_random_positions()
+            
+            if self.positions is None:
+                self._set_positions()
+            else:
+                if self._basic_positions_check():
+                    raise ValueError("inputed positions not valid. Invalid with base system configuration")
+                if not self.validate_configuration(self.positions):
+                    raise ValueError("inputed configuration not valid. Particles with supperpositions")
+                
             self.velocities = self._set_random_velocities()
             self.i_idx, self.j_idx = np.triu_indices(self.n_particles, k=1)
             log.info(f'system created')
+
+    def _set_positions(self):
+        if self.fast_initial:
+            self.positions = self._set_position_fast()
+        else:
+            self.positions = self._set_random_positions()
 
     def _set_random_positions(self):
         '''set the positions of the particles'''
@@ -48,6 +66,24 @@ class DiskSystem(ABC):
                 positions.append(pos)
         return np.array(positions)
     
+    def _set_position_fast(self):
+        if self.box_size**2 < self.particle_radius ** 2 * self.n_particles:
+            raise ValueError("can't fit the particles")
+        n_boxes = int(self.box_size / (2*self.particle_radius))
+
+        pos_grid = np.zeros((n_boxes,n_boxes))
+        positions = []
+        # safe_count=0
+        while len(positions) < self.n_particles:
+
+            x,y = self.rng.integers(0,n_boxes,size=2)
+            if pos_grid[x][y] == 0:
+                positions.append(np.array([((2*x)+1)*self.particle_radius,((2*y)+1)*self.particle_radius]))
+                pos_grid[x][y] = 1
+        
+        return np.array(positions,dtype=float)
+
+    
     def _set_random_velocities(self):
         return np.array([self.rng.uniform(-self.max_velocity,self.max_velocity,size=2) for i in range(self.n_particles)])
     
@@ -57,25 +93,43 @@ class DiskSystem(ABC):
             raise ValueError("new positions not valid")
         self.positions = positions
 
-    def plot_system(self, show_velocities=False, ax = None, show_grid = False):
-        if ax == None:
-            fig, ax = plt.subplots()
-        
-        # Plotando os discos
-        for pos in self.positions:
-            circle = plt.Circle(pos, self.particle_radius, color='blue', alpha=0.5)
-            ax.add_patch(circle)
-        ax.set_xlim(0, self.box_size)
-        ax.set_ylim(0, self.box_size)
+
+    def plot_system(self, show_velocities=False, ax=None, show_grid=False):
+        if ax is None:
+            _, ax = plt.subplots()
+
+        L   = self.box_size
+        R   = self.particle_radius
+        pos = self.positions          # shape (N,2)
+
+        # --- draw every disk and the images that overlap the window -------------
+        shifts = (-L, 0, L)           # Cartesian product gives 9 possibilities
+        for p in pos:
+            for dx in shifts:
+                for dy in shifts:
+                    # skip the central copy only once (dx=dy=0 after first loop)
+                    new = p + np.array([dx, dy])
+
+                    # Does this copy intersect the [0,L]×[0,L] window?
+                    if (
+                        -R <= new[0] <= L + R
+                        and -R <= new[1] <= L + R
+                    ):
+                        ax.add_patch(plt.Circle(new, R, color="blue", alpha=0.5))
+
+        # ------------------------------------------------------------------------
+        ax.set_xlim(0, L)
+        ax.set_ylim(0, L)
         ax.set_aspect('equal')
-        ax.set_title("Hard Disk System")
-        plt.grid(show_grid)
+        ax.set_title("Hard–disk system (periodic BCs)")
+        ax.grid(show_grid)
+        plt.show()
 
     def _basic_positions_check(self, position:Optional[np.ndarray]=None)->bool:
-        if isinstance(position,np.ndarray):
-            test_position = position
-        else:
+        if position is None:
             test_position = self.positions
+        else:
+            test_position = position
         if test_position.shape[0] != self.n_particles:
             raise ValueError("Invalid shape for positions")
         if test_position.dtype != np.dtype(float):
