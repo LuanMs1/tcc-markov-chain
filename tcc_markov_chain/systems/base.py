@@ -10,13 +10,12 @@ log = get_logger(__name__)
 from typing import Tuple, Callable, Any, Optional, Dict
 @dataclass
 class DiskSystem(ABC):
-    box_size:float=10
+    box_dimension:np.ndarray[float,float] = field(default_factory=lambda: np.array([10.0, 10.0]))
     n_particles:int=4
     particle_radius:float=0.5
     max_velocity:float = 0.5
     seed:int=42
     fast_initial:bool = False
-    box_dimension:Optional[np.ndarray[float,float]] = None
     positions: Optional[np.ndarray] = None     # shape: (n_particles, 2)
     velocities: Optional[np.ndarray] = None    # shape: (n_particles, 2)
     periodic: Optional[bool] = False
@@ -26,8 +25,6 @@ class DiskSystem(ABC):
     def _error_check(self):
         pass
     def __post_init__(self):
-            if self.box_dimension is None:
-                self.box_dimension=np.array([self.box_size,self.box_size])
             log.info(f'creting system with {self.n_particles} particles of radii {self.particle_radius}')
             self.surface_density = (self.n_particles * np.pi * self.particle_radius**2)/(self.box_dimension[0]*self.box_dimension[1])
             log.info(f'density: {self.surface_density}, box size {self.box_dimension}')
